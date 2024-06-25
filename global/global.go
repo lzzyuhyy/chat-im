@@ -2,6 +2,7 @@ package global
 
 import (
 	"github.com/gorilla/websocket"
+	"gopkg.in/fatih/set.v0"
 	"gorm.io/gorm"
 	"sync"
 )
@@ -14,10 +15,11 @@ type Node struct {
 	Data       chan []byte     // 收发的数据
 	CloseRead  bool            // 是否关闭发送消息的链接
 	CloseWrite bool            // 是否关闭接收消息的链接
+	SetGroup   set.Interface   // 用户所在群组
 }
 
 // 所有链接映射关系
-var ClientMap map[string]Node = make(map[string]Node)
+var ClientMap = make(map[int]Node)
 
 // 等待组--等待读写协程
 var WG sync.WaitGroup

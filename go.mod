@@ -5,8 +5,10 @@ go 1.22
 require github.com/astaxie/beego v1.12.1
 
 require (
+	github.com/Baidu-AIP/golang-sdk v1.1.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/smartystreets/goconvey v1.6.4
+	gopkg.in/fatih/set.v0 v0.2.1
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/gorm v1.25.7
 )

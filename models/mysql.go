@@ -21,5 +21,5 @@ func InitMySQL() {
 		return
 	}
 
-	global.DB.AutoMigrate(new(User), new(UserRelationship))
+	global.DB.AutoMigrate(new(User), new(UserRelationship), new(MsgHistories), new(GroupChat))
 }

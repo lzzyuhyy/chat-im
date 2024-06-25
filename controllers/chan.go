@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"chat-im/global"
+	"chat-im/models"
 	"encoding/json"
+	"fmt"
 	"github.com/astaxie/beego"
 	"github.com/gorilla/websocket"
 	"log"
@@ -14,13 +16,14 @@ type ChanController struct {
 }
 
 func (c *ChanController) Chan() {
-
 	// 模拟中间件鉴权
-	userId := c.GetString("user_id")
+	userId, _ := c.GetInt("user_id")
+	log.Println(userId)
 	auth := true
-	if userId == "" {
+	if userId == 0 {
 		auth = false
 	}
+
 	//将http请求升级成websocket请求
 	// 链接配置信息
 	var upgrader = websocket.Upgrader{
@@ -37,12 +40,26 @@ func (c *ChanController) Chan() {
 		log.Println(err)
 		return
 	}
+
 	// 初始化映射关系
 	node := global.Node{
 		Conn: conn,
 		Data: make(chan []byte, 50), // 初始化数据通道
+		//SetGroup: set.New(set.ThreadSafe),
 	}
 	global.ClientMap[userId] = node
+
+	//// 获取用户所在的所有群
+	//ug := models.GroupChat{
+	//	OwnerId: uint(userId),
+	//}
+	//list, res := ug.GetGroupList()
+	//if res.Error != nil {
+	//	logs.Error("用户所在群获取失败", res.Error)
+	//}
+	//for _, v := range list {
+	//	node.SetGroup.Add(v.ID) // 将用户所在群id放入集合
+	//}
 
 	//当我们想要同时发送和接收消息时--协程
 	// 同步等待组
@@ -55,10 +72,11 @@ func (c *ChanController) Chan() {
 
 // 消息内容结构体
 type MessageType struct {
-	UserId  string `json:"user_id"`  // 发布方id
-	DistId  string `json:"dist_id"`  // 接收方id
+	UserId  uint   `json:"user_id"`  // 发布方id
+	DistId  uint   `json:"dist_id"`  // 接收方id
 	Content string `json:"content"`  // 消息内容
-	MsgType string `json:"msg_type"` // 消息类型 （系统/个人）
+	MsgType int    `json:"msg_type"` // 消息类型 （系统/个人）
+	Cmd     int    `json:"cmd"`      // 消息类型 （群聊/私聊）
 }
 
 // 发消息---我向服务端发送数据
@@ -70,21 +88,29 @@ func ReadMessage(node global.Node) {
 		_, message, _ := node.Conn.ReadMessage()
 		// 读到消息后转码
 		json.Unmarshal(message, &msg)
+
+		//是否群聊
+		//if msg.Cmd == 1 { // 是群聊
+		//	// 找到当前用户聊天的群
+		//
+		//} else if msg.Cmd == 0 { // 不是群聊
 		// 对方链接信息是否存在
-		if _, ok := global.ClientMap[msg.DistId]; ok {
+		if _, ok := global.ClientMap[int(msg.DistId)]; ok {
 			// 信息存在, 将消息后放入对方接信息的对应数据通道中
-			global.ClientMap[msg.DistId].Data <- message
+			global.ClientMap[int(msg.DistId)].Data <- message
 		} else {
 			msg = MessageType{
 				UserId:  msg.UserId,
 				DistId:  msg.DistId,
 				Content: "对方不在线",
-				MsgType: "admin",
+				MsgType: 2,
+				Cmd:     msg.Cmd,
 			}
 			str, _ := json.Marshal(&msg)
 			// 不存在--给我发送系统级消息--对方不在线
-			global.ClientMap[msg.UserId].Data <- str
+			global.ClientMap[int(msg.UserId)].Data <- str
 		}
+		//}
 	}
 }
 
@@ -107,11 +133,41 @@ func WriteMessage(node global.Node) {
 						DistId:  msg.DistId,
 						Content: msg.Content,
 						MsgType: msg.MsgType,
+						Cmd:     msg.Cmd,
 					}
 					str, _ := json.Marshal(&msg)
 					//对发消息的用户做出提示
-					global.ClientMap[msg.UserId].Data <- str
+					global.ClientMap[int(msg.UserId)].Data <- str
 					// 将发送失败或未发送（对方不在线）的消息也存入数据库
+					msgHis := models.MsgHistories{
+						OwnerId: msg.UserId,
+						DistId:  msg.DistId,
+						Content: msg.Content,
+						IsRead:  0,
+						IsSend:  2,
+						Cmd:     uint8(msg.Cmd),
+						Status:  0,
+					}
+					err = msgHis.AddMessage()
+					if err != nil {
+						fmt.Println("数据添加成功")
+						return
+					}
+				}
+				// 发送成功
+				msgHis := models.MsgHistories{
+					OwnerId: msg.UserId,
+					DistId:  msg.DistId,
+					Content: msg.Content,
+					IsRead:  0,
+					IsSend:  2,
+					Cmd:     uint8(msg.Cmd),
+					Status:  0,
+				}
+				err = msgHis.AddMessage()
+				if err != nil {
+					fmt.Println("数据添加成功")
+					return
 				}
 			} else {
 				// 无数据情况处理

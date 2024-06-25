@@ -5,6 +5,7 @@ import (
 	"chat-im/models"
 	"chat-im/pkg"
 	"github.com/astaxie/beego"
+	"github.com/astaxie/beego/logs"
 	"gorm.io/gorm"
 	"strconv"
 )
@@ -151,6 +152,7 @@ func (c *UserController) FriendList() {
 	// 获取用户的好友id
 	list, res := ur.GetUserDistId()
 	if res.Error != nil {
+		logs.Error("数据获取失败", res.Error)
 		c.Data["json"] = global.ResponseData{
 			Code:    -1,
 			Message: "用户数据获取失败",
@@ -179,6 +181,7 @@ func (c *UserController) FriendList() {
 		u := models.User{Model: gorm.Model{ID: data}}
 		res = u.GetUserInfoById()
 		if res.Error != nil {
+			logs.Error("获取好友信息", res.Error)
 			break
 		}
 		userInfo[data] = u
@@ -202,4 +205,5 @@ func (c *UserController) FriendList() {
 		},
 	}
 	c.ServeJSON(true)
+	return
 }
